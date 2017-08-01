@@ -4,7 +4,7 @@ google_analytics:
 show_downloads: false
 theme: jekyll-theme-midnight
 
-include: [_layouts, _post]
+include: [_layouts, _post, favicon.ico]
 permalink: date
 
 gems:
