@@ -1,8 +1,11 @@
-title: Kevin Qian@Github
-description: kevinkassimo.github.io
+title: Expr.IO
+description: Blog by Kevin Qian
 google_analytics: 
-show_downloads: true
+show_downloads: false
 theme: jekyll-theme-midnight
+
+include: [_layouts, _post]
+permalink: date
 
 gems:
   - jekyll-mentions
