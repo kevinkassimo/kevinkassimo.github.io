@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="chrome=1">
+        <title>Expr.IO by kevinkassimo</title>
+        <link rel="stylesheet" href="/assets/css/style.css?v=119c338442b28b5c69c8dc66ab2cf5f8be0737e9">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+        <script src="/assets/js/respond.js"></script>
+        <!--[if lt IE 9]>
+            <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+        <![endif]-->
+        <!--[if lt IE 8]>
+            <link rel="stylesheet" href="/assets/css/ie.css">
+        <![endif]-->
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    </head>
+    <body>
+        <div id="header">
+            <nav>
+                <li class="fork">
+                    <a href="http://github.com/kevinkassimo/kevinkassimo.github.io">View On GitHub</a>
+                </li>
+            </nav>
+        </div>
+
+        <div class="wrapper">
+            <section>
+                <div class="title">
+                    <h1>
+                         
+                        A Look Into ExpressJS' Source Code (1)
+                        
+                    </h1>
+                    <hr>
+                    <h4>
+                         
+                        <object class="svg" type="image/svg+xml" data="/images/icons/clock.svg">Your browser does not support SVG</object> 2017-08-11 &nbsp; ||&nbsp; By Kevin Qian
+                        
+                    </h4>
+                    <hr>
+                </div>
+                <h2 id="introduction">Introduction</h2>
+<p>ExpressJS is one of the most used NodeJS framework for web application and routing ever since its release. As noted on its <a href="http://expressjs.com/">official website</a>, it has the reputation of being a “fast, unopinionated, minimalist web framework.” Created by TJ Holowaychuk (who later shifted to the development of <a href="http://koajs.com">Koa.js</a> (which we will be reviewing next to see the difference between it and Express)) and currently maintained by Doug Wilson. The current release is Express 4.15.3. However, we will be focusing on the <a href="https://github.com/expressjs/express/tree/master">master branch on Github</a>.</p>
+
+<h2 id="layout">Layout</h2>
+<p>The current layout of the project is given in the following graph:</p>
+<div class="highlighter-rouge"><pre class="highlight"><code>- lib
+  |
+  |-- application.js
+  |-- express.js
+  |-- request.js
+  |-- response.js
+  |-- utils.js
+  |-- view.js
+  |__ router
+      |
+      |-- index.js
+      |-- route.js
+      |__ layer.js
+</code></pre>
+</div>
+<p>Our analysis of the source code would start from <code class="highlighter-rouge">router</code> section.</p>
+
+<h2 id="router">Router</h2>
+<p>The <code class="highlighter-rouge">router</code> section could in fact be considered a somehow more independent section, as it is even having its <a href="https://github.com/pillarjs/router">own repository</a> outside of the overall ExpressJS project. To start, we would see what is inside each of its components.</p>
+
+<h3 id="layerjs">layer.js</h3>
+<p>In this file, the usually not-documented class of <code class="highlighter-rouge">Layer</code> is defined. We can understand a <code class="highlighter-rouge">Layer</code> as a unit of operation. For instance, when we use <code class="highlighter-rouge">app.use(...)</code> or <code class="highlighter-rouge">router.use(...)</code> and provide with multiple middleware functions, we are actually adding multiple layers onto the stack contained inside of each. In the <code class="highlighter-rouge">router</code> case, there is a property <code class="highlighter-rouge">router.stack</code> defined. Notice in the lines defining <code class="highlighter-rouge">proto.use</code> (which is in fact the actual <code class="highlighter-rouge">router.use</code> we are exposed with), we see the following code:</p>
+<div class="language-javascript highlighter-rouge"><pre class="highlight"><code><span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">callbacks</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">fn</span> <span class="o">=</span> <span class="nx">callbacks</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span>
+    <span class="c1">//...</span>
+    <span class="kd">var</span> <span class="nx">layer</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Layer</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">sensitive</span><span class="p">:</span> <span class="k">this</span><span class="p">.</span><span class="nx">caseSensitive</span><span class="p">,</span>
+        <span class="na">strict</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+        <span class="na">end</span><span class="p">:</span> <span class="kc">false</span>
+    <span class="p">},</span> <span class="nx">fn</span><span class="p">);</span>
+    <span class="nx">layer</span><span class="p">.</span><span class="nx">route</span> <span class="o">=</span> <span class="kc">undefined</span><span class="p">;</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">stack</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">layer</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>Here, any callbacks supplied to <code class="highlighter-rouge">router.use(...)</code> is simply pushed onto the <code class="highlighter-rouge">stack</code>.</p>
+
+<p><code class="highlighter-rouge">Layer</code> takes in a path, options and an operation function as its component. At first, <code class="highlighter-rouge">path</code> is not stored in <code class="highlighter-rouge">layer.path</code>, but in <code class="highlighter-rouge">layer.regexp</code>. This is due to that Express supports <code class="highlighter-rouge">/login/:user/:id</code> like expression, for simple <code class="highlighter-rouge">:user =&gt; username</code> variable value storing feature. Thus, using <code class="highlighter-rouge">Regexp</code> for grouping and mapping becomes handy. Later, <code class="highlighter-rouge">Layer</code> provides <code class="highlighter-rouge">.match(path)</code> method. By executing <code class="highlighter-rouge">layer.match(path)</code>, we compare the given <code class="highlighter-rouge">path</code> with <code class="highlighter-rouge">this.regexp</code> to see if this layer actually matches the path, and such that it should function only to certain paths. During the process, each <code class="highlighter-rouge">:user</code> like expression is matched and having their value stored in <code class="highlighter-rouge">layer.params['user']</code> for later usage.</p>
+
+<p>Another notable thing seen in <code class="highlighter-rouge">Layer</code> is that each layer could function either for <code class="highlighter-rouge">.handle_error()</code> or <code class="highlighter-rouge">.handle_request()</code>, but not both. If the handler fails or encounters the wrong task (such as asking a <code class="highlighter-rouge">.handle_request()</code> only layer to handle error), it would fallback using the provided <code class="highlighter-rouge">next</code>, which is an argument supplied when calling the one of the two handlers.</p>
+
+<h3 id="routejs">route.js</h3>
+<p>In this file, the <code class="highlighter-rouge">Route</code> is defined. Initialized with <code class="highlighter-rouge">new Route(path)</code>, it correspond to operations (there is an interal <code class="highlighter-rouge">this.stack</code> where layers would be pushed onto), accepted methods (such as GET, POST, etc.) on a single non-regexp matching route. It is useful in terms that you wants to add multiple methods to different paths with initial part the same.</p>
+
+<p>Internally, all methods are stored in lowercase, while when using <code class="highlighter-rouge">Route._options()</code> to access them, they would all be adapted to uppercase versions, with “HEAD” and “GET” usually binding together (when GET is available, HEAD is usually implied). <code class="highlighter-rouge">Route</code> has all the <code class="highlighter-rouge">.all() .get() .post()...</code> styled methods, with specific methods defined through an internal loop, and <code class="highlighter-rouge">.all()</code> implemented with a special internal variable <code class="highlighter-rouge">route._all</code> property set to <code class="highlighter-rouge">true</code>.</p>
+
+<p>A core method of <code class="highlighter-rouge">Route</code> is <code class="highlighter-rouge">Route.dispatch()</code>, which is usually not documented.</p>
+<div class="language-javascript highlighter-rouge"><pre class="highlight"><code><span class="nx">Route</span><span class="p">.</span><span class="nx">prototype</span><span class="p">.</span><span class="nx">dispatch</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">dispatch</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">done</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">//...</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>This <code class="highlighter-rouge">.dispatch()</code> method is the essence of <code class="highlighter-rouge">Route</code>: it takes in normal <code class="highlighter-rouge">req</code> and <code class="highlighter-rouge">res</code>, with an additional <code class="highlighter-rouge">done</code> function passed in to serve finalization (or final error handling if <code class="highlighter-rouge">done</code> supports a single <code class="highlighter-rouge">err</code> parameter). It sets the <code class="highlighter-rouge">req.route</code> to itself, and then loop through each layer on <code class="highlighter-rouge">this.stack</code> through <code class="highlighter-rouge">next()</code> chaining, while checking if the request has the same method to the <code class="highlighter-rouge">layer.route</code>, and conditionally invoke request or error handler (as mentioned in <code class="highlighter-rouge">Layer</code> above) depending on if some error is present. In simpler terms, <code class="highlighter-rouge">.dispatch()</code> is the actual method that, when called, would do all the services added through <code class="highlighter-rouge">.get()</code> like methods. One interesting observation is that if one layer encounters the unexpected type of handler, it would just <em>silently</em> call chained <code class="highlighter-rouge">next()</code> and pass (if present) errors to the next layer, hoping that it could handle it. When the chain of <code class="highlighter-rouge">next()</code> is completed, the <code class="highlighter-rouge">done(?err)</code> is invoked to finalize.</p>
+
+<h3 id="routeindexjs">route/index.js</h3>
+<p>The actual definition of <code class="highlighter-rouge">express.Router</code> is specified in this file, with the assistance of <code class="highlighter-rouge">layer.js</code> and <code class="highlighter-rouge">route.js</code>.</p>
+
+<p>The major part of the definition of <code class="highlighter-rouge">router</code> methods is encapsulated through <code class="highlighter-rouge">proto</code>, prototype of <code class="highlighter-rouge">router</code>, which have the following interesting relationship creation:</p>
+<div class="language-javascript highlighter-rouge"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">proto</span> <span class="o">=</span> <span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">//...</span>
+    <span class="kd">function</span> <span class="nx">router</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">next</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">router</span><span class="p">.</span><span class="nx">handle</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">next</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="c1">// mixin Router class functions</span>
+    <span class="nx">setPrototypeOf</span><span class="p">(</span><span class="nx">router</span><span class="p">,</span> <span class="nx">proto</span><span class="p">)</span>
+
+    <span class="c1">//...</span>
+    <span class="k">return</span> <span class="nx">router</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>The <code class="highlighter-rouge">setPrototypeOf</code> does the <code class="highlighter-rouge">router.__proto__ = proto</code> trick. <code class="highlighter-rouge">proto</code> defines all prototypal methods for <code class="highlighter-rouge">router</code>, while encapsulating the function invocation of <code class="highlighter-rouge">router()</code> as a synonym for <code class="highlighter-rouge">router.handle()</code> (we will examine below) for simpler API. In this section, I would use <code class="highlighter-rouge">proto.method()</code> interchangeably with <code class="highlighter-rouge">router.method()</code> (which are recorded in documentations), as they are in essence the same thing.</p>
+
+<p><code class="highlighter-rouge">proto.use()</code> is very similar to the method handlers (such as <code class="highlighter-rouge">route.get()</code>) mentioned before, and is implemented similarly internally. <code class="highlighter-rouge">proto.route()</code> spins off an independent <code class="highlighter-rouge">Route</code> out of original router, and registers the <code class="highlighter-rouge">route.dispatch()</code> method as the callback inside a <code class="highlighter-rouge">Layer</code>, which is pushed on the main <code class="highlighter-rouge">proto.stack</code>. In this way, the route is treated and has its callback invoked as a single unit, with all complications wrapped inside of it, where more detailed <code class="highlighter-rouge">Layer</code> are specified. Nice design!</p>
+
+<p><code class="highlighter-rouge">proto.param(name, callback)</code> (where <code class="highlighter-rouge">callback = function(?req, ?res, ?next, ?paramVal, ?paramName)</code>) adds callback triggers so that when the specified parameter (as in Express-styled paths <code class="highlighter-rouge">:user</code>, where <code class="highlighter-rouge">':'</code> is not needed when provided as an argument to <code class="highlighter-rouge">.param()</code>) is seen and matched, the callback is invoked. A noticeable part is that this will ALWAYS invoke BEFORE the path-matching callbacks are invoked (e.g. when seeing <code class="highlighter-rouge">/path/:user</code>, the trigger for parameter <code class="highlighter-rouge">user</code>, added through <code class="highlighter-rouge">proto.param()</code>,  will be invoked BEFORE the trigger for <code class="highlighter-rouge">/path/:user</code>), which I will explain in the next paragraph on the core method. <code class="highlighter-rouge">proto.param()</code> itself is actually also a very simple method. It pushes the given callback to the <code class="highlighter-rouge">proto.params[paramName]</code> stack. <code class="highlighter-rouge">proto.params</code> is an internal object that has key of props matching to each registered parameters, with the value of each of them a stack of all callbacks related. Therefore, this also implies that multiple callback triggers could be added to a single parameter. Notice that if the callback function needs the provided <code class="highlighter-rouge">?req, ?res, ?next, ?paramVal, ?paramName</code>, they must be in the exact sequence (setting undefined or omitting trailing parameters would be okay), as this is how the core method will invoke the callback through <code class="highlighter-rouge">proto.process_params()</code> (description see below).</p>
+
+<p>Here comes the core method, <code class="highlighter-rouge">proto.handle(req, res, out)</code>. Its status and mechanism is a bit similar to the <code class="highlighter-rouge">route.dispatch()</code>. First, it stashes some properties of <code class="highlighter-rouge">req</code>, which will be automatically recovered when the <code class="highlighter-rouge">done()</code> (a finalizing function created by processing <code class="highlighter-rouge">out</code>) is called. And then comes the difference from <code class="highlighter-rouge">route.dispatch()</code>: though <code class="highlighter-rouge">next()</code> chaining still exists, an internal <code class="highlighter-rouge">while</code> loop is also present to help examine each layer on <code class="highlighter-rouge">proto.stack</code>. In these <code class="highlighter-rouge">while</code> loops, <code class="highlighter-rouge">req.path</code> is first matched using <code class="highlighter-rouge">layer.match()</code>. If a match exists, layer would check if itself supports <code class="highlighter-rouge">req.method</code>. If this is true again, the <code class="highlighter-rouge">while</code> loop would stop, and later handling steps follows. During this process, the OPTIONS method is specially taken care of with relevant handling functions called. In this way, each matching layers would be used one by one. For the actual handling steps, we first have <code class="highlighter-rouge">proto.process_params(layer, called, req, res, done)</code>, a method that manages to call each collection of callbacks on parameters without repeating and leaves records of all parameters that have their callbacks invoked in <code class="highlighter-rouge">called</code>. The actual <code class="highlighter-rouge">layer.handle_request(req, res, next)</code> that works on the real request handling, only appears in the definition of <code class="highlighter-rouge">done()</code> here, which would be called only after all parameters have their callbacks invoked. This explains why all parameter callbacks goes before path layer callbacks. After all these have been completed, the <code class="highlighter-rouge">next()</code>, placed in <code class="highlighter-rouge">layer.handle_request(req, res, next)</code> this time, is finally called, continues to follow the rest of the <code class="highlighter-rouge">proto.stack</code> in hopes of getting more matchs. This core method is indeed a complex beast, and the mixed coding style from multiple contributers further obscures the intention behind the lines. Nevertheless, when breaking down in descriptive language, we find its logic still very straightforward, as elegant as it might be.</p>
+
+<h3 id="whats-next">What’s Next?</h3>
+<p>In the next blog post, I will examine other files and components of the ExpressJS framework. The <code class="highlighter-rouge">router</code> section analyzed in this post could be understood as a miniature of the ExpressJS, as we will see familiar structure in the construction of <code class="highlighter-rouge">app</code>.</p>
+
+                <hr>
+                
+                <h3>Comments:</h3>
+                <a href="https://github.com/kevinkassimo/kevinkassimo.github.io/issues/2">Link to comments</a>
+                
+            </section>
+        </div>
+    </body>
+    <style>
+        .svg {fill: white}
+    </style>
+    <script type="text/javascript">
+    </script>
+</html>
+
+
