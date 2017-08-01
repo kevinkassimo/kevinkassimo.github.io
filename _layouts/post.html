@@ -35,11 +35,12 @@
                         {% endif %}
                     </h1>
                     <hr>
-                    <h3>
+                    <h4>
                         {% if page.date %} 
-                        {{ page.date }}
+                        <object class="svg" type="image/svg+xml" data="/images/icons/clock.svg">Your browser does not support SVG</object> {{ page.date }}
                         {% endif %}
-                    </h3>
+                    </h4>
+                    <hr>
                 </div>
                 {{content}}
                 <hr>
@@ -50,6 +51,11 @@
             </section>
         </div>
     </body>
+    <style>
+        .svg {fill: white}
+    </style>
+    <script type="text/javascript">
+    </script>
 </html>
 
 

@@ -9,3 +9,4 @@ permalink: date
 
 gems:
   - jekyll-mentions
+  - jekyll-octicons
